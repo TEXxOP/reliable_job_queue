@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Job Queue Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Fira+Code&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="dashboard">
+    <header>
+      <h1>⚡ <span>Job Queue</span> Dashboard</h1>
+      <div class="status-badge" id="connectionStatus">
+        <div class="status-dot"></div>
+        <span>Connected</span>
+      </div>
+    </header>
+
+    <!-- this helps ensure key metrics are visible at a glance -->
+    <div class="metrics-grid">
+      <div class="metric-card pending">
+        <div class="label">Pending</div>
+        <div class="value" id="metricPending">0</div>
+      </div>
+      <div class="metric-card processing">
+        <div class="label">Processing</div>
+        <div class="value" id="metricProcessing">0</div>
+      </div>
+      <div class="metric-card completed">
+        <div class="label">Completed</div>
+        <div class="value" id="metricCompleted">0</div>
+      </div>
+      <div class="metric-card failed">
+        <div class="label">Failed</div>
+        <div class="value" id="metricFailed">0</div>
+      </div>
+      <div class="metric-card dlq">
+        <div class="label">Dead Letter Queue</div>
+        <div class="value" id="metricDLQ">0</div>
+      </div>
+      <div class="metric-card throughput">
+        <div class="label">Throughput / min</div>
+        <div class="value" id="metricThroughput">0</div>
+      </div>
+    </div>
+
+    <!-- this helps ensure recent jobs are easy to inspect -->
+    <div class="section">
+      <h2>Recent Jobs</h2>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Job ID</th>
+              <th>Type</th>
+              <th>Priority</th>
+              <th>Status</th>
+              <th>Attempts</th>
+              <th>Created</th>
+            </tr>
+          </thead>
+          <tbody id="jobsTable">
+            <tr><td colspan="6" class="empty-state">Loading jobs...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- this helps ensure dead letter jobs can be recovered from the UI -->
+    <div class="section">
+      <h2>Dead Letter Queue</h2>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>DLQ ID</th>
+              <th>Type</th>
+              <th>Error</th>
+              <th>Attempts</th>
+              <th>Failed At</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="dlqTable">
+            <tr><td colspan="6" class="empty-state">No dead letter jobs</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // this helps ensure the dashboard connects to the WebSocket server for live updates
+    const WS_URL = `ws://${window.location.host}`;
+    let ws;
+    let reconnectTimer;
+
+    function connect() {
+      ws = new WebSocket(WS_URL);
+
+      ws.onopen = () => {
+        const badge = document.getElementById('connectionStatus');
+        badge.className = 'status-badge';
+        badge.querySelector('span').textContent = 'Connected';
+        clearTimeout(reconnectTimer);
+      };
+
+      ws.onmessage = (event) => {
+        const message = JSON.parse(event.data);
+        if (message.type === 'metrics') {
+          updateMetrics(message.data);
+        }
+      };
+
+      ws.onclose = () => {
+        const badge = document.getElementById('connectionStatus');
+        badge.className = 'status-badge connection-lost';
+        badge.querySelector('span').textContent = 'Disconnected';
+        // this helps ensure we automatically reconnect after losing connection
+        reconnectTimer = setTimeout(connect, 3000);
+      };
+    }
+
+    // this helps ensure metric cards update with the latest numbers
+    function updateMetrics(data) {
+      document.getElementById('metricPending').textContent = data.database.pending;
+      document.getElementById('metricProcessing').textContent = data.database.processing;
+      document.getElementById('metricCompleted').textContent = data.database.completed;
+      document.getElementById('metricFailed').textContent = data.database.failed;
+      document.getElementById('metricDLQ').textContent = data.database.dead;
+      document.getElementById('metricThroughput').textContent = data.database.recentThroughput;
+    }
+
+    // this helps ensure the jobs table is populated with recent job data
+    async function loadJobs() {
+      try {
+        const res = await fetch('/api/jobs?limit=20');
+        const jobs = await res.json();
+        const tbody = document.getElementById('jobsTable');
+
+        if (jobs.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No jobs yet</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = jobs.map(job => `
+          <tr>
+            <td class="mono">${job.id.substring(0, 8)}...</td>
+            <td>${job.type}</td>
+            <td>${job.priority}</td>
+            <td><span class="status ${job.status}">${job.status}</span></td>
+            <td>${job.attempts}/${job.maxAttempts || job.max_attempts}</td>
+            <td>${new Date(job.createdAt || job.created_at).toLocaleTimeString()}</td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        console.error('Failed to load jobs:', err);
+      }
+    }
+
+    // this helps ensure the DLQ table shows failed jobs with a recovery button
+    async function loadDLQ() {
+      try {
+        const res = await fetch('/api/dlq');
+        const dlqJobs = await res.json();
+        const tbody = document.getElementById('dlqTable');
+
+        if (dlqJobs.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No dead letter jobs</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = dlqJobs.map(job => `
+          <tr>
+            <td class="mono">${job.id.substring(0, 8)}...</td>
+            <td>${job.type}</td>
+            <td>${(job.error || '').substring(0, 40)}</td>
+            <td>${job.attempts}/${job.max_attempts}</td>
+            <td>${new Date(job.failed_at).toLocaleTimeString()}</td>
+            <td><button class="btn btn-recover" onclick="recoverJob('${job.id}')">Recover</button></td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        console.error('Failed to load DLQ:', err);
+      }
+    }
+
+    // this helps ensure clicking "Recover" re-enqueues the dead letter job
+    async function recoverJob(dlqId) {
+      try {
+        const res = await fetch(`/api/dlq/recover/${dlqId}`, { method: 'POST' });
+        const result = await res.json();
+        if (result.recovered) {
+          loadDLQ();
+          loadJobs();
+        }
+      } catch (err) {
+        console.error('Failed to recover job:', err);
+      }
+    }
+
+    // this helps ensure data is refreshed periodically alongside WebSocket updates
+    connect();
+    loadJobs();
+    loadDLQ();
+    setInterval(loadJobs, 5000);
+    setInterval(loadDLQ, 5000);
+  </script>
+</body>
+</html>
