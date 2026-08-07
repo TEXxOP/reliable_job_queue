@@ -9,7 +9,8 @@
     "dev": "ts-node src/index.ts",
     "worker": "ts-node src/worker.ts",
     "dashboard": "ts-node src/dashboard/server.ts",
-    "dev:watch": "nodemon --exec ts-node src/index.ts"
+    "dev:watch": "nodemon --exec ts-node src/index.ts",
+    "seed": "ts-node src/seed.ts"
   },
   "keywords": [
     "job-queue",

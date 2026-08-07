@@ -145,6 +145,21 @@ npm run worker      # Worker pool
 npm run dashboard   # Dashboard (port 3001)
 ```
 
+### Seed Test Jobs
+
+```bash
+# Seed 15 jobs (default — mix of email, payment, report with varied priorities)
+npm run seed
+
+# Seed a custom number of jobs
+npm run seed -- 50
+
+# Seed 100 jobs to stress-test the workers
+npm run seed -- 100
+```
+
+Watch them get processed in real-time on the dashboard: http://localhost:3001
+
 ## API Reference
 
 ### Enqueue a Job

@@ -146,13 +146,14 @@ export class Worker {
   private startHeartbeat(): void {
     this.heartbeatInterval = setInterval(async () => {
       this.lastHeartbeat = new Date();
-      if (this.currentJob) {
+      const job = this.currentJob;
+      if (job) {
         await this.redisQueue.extendVisibility(
-          this.currentJob.id,
+          job.id,
           config.worker.visibilityTimeoutSec
         );
         await this.lock.extend(
-          this.currentJob.id,
+          job.id,
           config.worker.visibilityTimeoutSec * 1000
         );
       }
