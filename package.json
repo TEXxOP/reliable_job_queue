@@ -1,0 +1,42 @@
+{
+  "name": "reliable-job-queue",
+  "version": "1.0.0",
+  "description": "Fault-tolerant distributed job queue with dead letter recovery, built with TypeScript, Redis, and PostgreSQL",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "worker": "ts-node src/worker.ts",
+    "dashboard": "ts-node src/dashboard/server.ts",
+    "dev:watch": "nodemon --exec ts-node src/index.ts"
+  },
+  "keywords": [
+    "job-queue",
+    "redis",
+    "postgresql",
+    "dead-letter-queue",
+    "distributed-systems",
+    "typescript"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "ioredis": "^5.4.1",
+    "pg": "^8.13.0",
+    "uuid": "^10.0.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.5.0",
+    "@types/pg": "^8.11.8",
+    "@types/uuid": "^10.0.0",
+    "@types/ws": "^8.5.12",
+    "nodemon": "^3.1.4",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.4"
+  }
+}
